@@ -119,10 +119,11 @@
                 <Ellipse x:Name="ControlPoint3" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
                 <Ellipse x:Name="ControlPoint4" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
                 <Line x:Name="MidpointLine" Stroke="White" StrokeDashArray="2 2"/>
+                <Line x:Name="Timeline" Stroke="Red" StrokeThickness="1" Visibility="{Binding ShowTimeline, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             </Canvas>
 
             <Thumb x:Name="ResizeThumb" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                   Width="15" Height="15" Cursor="SizeNWSE" DragDelta="ResizeThumb_DragDelta">
+                   Width="15" Height="15" Cursor="SizeNWSE" DragDelta="ResizeThumb_DragDelta" DragStarted="ResizeThumb_DragStarted">
                 <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
                         <Border Background="#666" CornerRadius="2">
@@ -150,6 +151,7 @@
             </Grid>
             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                 <CheckBox Content="枠線表示" IsChecked="{Binding ShowGrid}" VerticalAlignment="Center"/>
+                <CheckBox Content="時間線表示" IsChecked="{Binding ShowTimeline}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 <CheckBox Content="磁石" IsChecked="{Binding EnableSnapping}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>
         </StackPanel>

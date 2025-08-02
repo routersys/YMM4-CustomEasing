@@ -116,8 +116,11 @@ namespace YMM4SamplePlugin.Easing
         public Vector2 ControlPoint2 { get => _owner.ControlPoint2; set => _owner.ControlPoint2 = value; }
         public Vector2 ControlPoint3 { get => _owner.ControlPoint3; set => _owner.ControlPoint3 = value; }
         public Vector2 ControlPoint4 { get => _owner.ControlPoint4; set => _owner.ControlPoint4 = value; }
-        public bool ShowGrid { get => _owner.ShowGrid; set => _owner.ShowGrid = value; }
+        public bool ShowGrid { get => _owner.ShowGrid; set { if (_owner.ShowGrid != value) { _owner.ShowGrid = value; OnPropertyChanged(); } } }
+        public bool ShowTimeline { get => _owner.ShowTimeline; set { if (_owner.ShowTimeline != value) { _owner.ShowTimeline = value; OnPropertyChanged(); } } }
         public bool EnableSnapping { get => _owner.EnableSnapping; set => _owner.EnableSnapping = value; }
+
+        public double CurrentProgress => _owner.CurrentProgress;
 
         public ActionCommand SaveTemplateCommand { get; }
         public ActionCommand DeleteTemplateCommand { get; }
@@ -314,6 +317,10 @@ namespace YMM4SamplePlugin.Easing
         {
             if (_isApplyingTemplate) return;
             OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName == nameof(CustomEasingEffect.CurrentProgress))
+            {
+                OnPropertyChanged(nameof(CurrentProgress));
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -381,39 +388,43 @@ namespace YMM4SamplePlugin.Easing
             if (e.NewValue is EasingEditorViewModel newVm)
             {
                 newVm.PropertyChanged += OnViewModelPropertyChanged;
-                UpdateGridVisibility();
                 UpdateUI();
             }
         }
 
         private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(EasingEditorViewModel.ShowGrid))
-            {
-                UpdateGridVisibility();
-            }
-            UpdateUI();
-        }
-
-        private void UpdateGridVisibility()
-        {
-            var vm = ViewModel;
-            if (vm == null) return;
-            var visibility = vm.ShowGrid ? Visibility.Visible : Visibility.Collapsed;
-            VerticalGrid.Visibility = visibility;
-            HorizontalGrid.Visibility = visibility;
+            Dispatcher.BeginInvoke(new Action(() => UpdateUI()));
         }
 
         private void Canvas_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateUI();
 
         private void UpdateUI()
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(UpdateUI));
+                return;
+            }
+
             var vm = ViewModel;
-            if (vm == null || !vm.IsMidpointEnabled && EasingArea.ActualWidth <= 0) return;
+            if (vm == null || vm.EasingAreaSize <= 0) return;
 
             var w = vm.EasingAreaSize;
             var h = vm.EasingAreaSize;
-            if (w <= 0) return;
+
+            var gridVisibility = vm.ShowGrid ? Visibility.Visible : Visibility.Collapsed;
+            VerticalGrid.Visibility = gridVisibility;
+            HorizontalGrid.Visibility = gridVisibility;
+
+            if (vm.ShowTimeline)
+            {
+                var timelineX = 50 + vm.CurrentProgress * w;
+                Timeline.X1 = timelineX;
+                Timeline.Y1 = 50;
+                Timeline.X2 = timelineX;
+                Timeline.Y2 = 50 + h;
+            }
 
             var p0 = new Point(0, h);
             var pEnd = new Point(w, 0);

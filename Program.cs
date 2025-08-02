@@ -48,7 +48,9 @@ public static class Updater
             }
 
             var latestVersion = new Version(latestRelease.TagName.TrimStart('v'));
-            var pluginDllPath = Path.Combine(pluginDirectory, "YMM4SamplePlugin.Easing.dll");
+
+            var pluginDllPath = Path.Combine(pluginDirectory, "ymm-plugin.dll");
+
             var currentVersion = Assembly.LoadFrom(pluginDllPath).GetName().Version ?? new Version("0.0.0");
 
             Console.WriteLine($"現在のバージョン: {currentVersion}, 最新バージョン: {latestVersion}");

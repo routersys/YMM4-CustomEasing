@@ -66,8 +66,15 @@ namespace YMM4SamplePlugin.Easing
         public bool ShowGrid { get => showGrid; set => Set(ref showGrid, value); }
         private bool showGrid = true;
 
+        public bool ShowTimeline { get => showTimeline; set => Set(ref showTimeline, value); }
+        private bool showTimeline = true;
+
         public bool EnableSnapping { get => enableSnapping; set => Set(ref enableSnapping, value); }
         private bool enableSnapping = true;
+
+        [JsonIgnore]
+        public double CurrentProgress { get => _currentProgress; set => Set(ref _currentProgress, value); }
+        private double _currentProgress = 0.0;
 
         public override IVideoEffectProcessor CreateVideoEffect(IGraphicsDevicesAndContext devices)
         {
@@ -105,11 +112,13 @@ namespace YMM4SamplePlugin.Easing
             var fps = effectDescription.FPS;
             if (length == 0) return effectDescription.DrawDescription;
 
+            double linearTime = (double)frame / length;
+            _effect.CurrentProgress = linearTime;
+
             var startPos = new Vector2(effectDescription.DrawDescription.Draw.X, effectDescription.DrawDescription.Draw.Y);
             var endPos = startPos + new Vector2((float)_effect.EndX.GetValue(frame, length, fps), (float)_effect.EndY.GetValue(frame, length, fps));
             Vector2 currentPos;
 
-            double linearTime = (double)frame / length;
             float editorSize = _effect.EditorEasingAreaSize > 0 ? _effect.EditorEasingAreaSize : 200f;
 
             if (_effect.IsMidpointEnabled)
