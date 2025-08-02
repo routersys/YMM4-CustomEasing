@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -43,6 +44,9 @@ namespace YMM4SamplePlugin.Easing
         private readonly CustomEasingEffect _owner;
         private bool _isApplyingTemplate = false;
         private readonly string _templateDir;
+        private readonly string _settingsDir;
+        private readonly string _sizeSettingsPath;
+
 
         public ObservableCollection<EasingTemplate> Templates { get; } = [];
         private EasingTemplate? _selectedTemplate;
@@ -70,6 +74,23 @@ namespace YMM4SamplePlugin.Easing
         private string _newTemplateName = "新しいテンプレート";
         public string NewTemplateName { get => _newTemplateName; set => Set(ref _newTemplateName, value); }
 
+        private double _editorSize = 300;
+        public double EditorSize
+        {
+            get => _editorSize;
+            set
+            {
+                if (Set(ref _editorSize, Math.Clamp(value, 150, 800)))
+                {
+                    OnPropertyChanged(nameof(EasingAreaSize));
+                    PopulateGridLines();
+                    SaveEditorSize();
+                }
+            }
+        }
+
+        public double EasingAreaSize => EditorSize - 100;
+
         public bool IsMidpointEnabled { get => _owner.IsMidpointEnabled; set { if (_owner.IsMidpointEnabled != value) { _owner.IsMidpointEnabled = value; OnPropertyChanged(); } } }
         public double MidpointTime { get => _owner.MidpointTime; set { if (_owner.MidpointTime != value) { _owner.MidpointTime = value; OnPropertyChanged(); } } }
         public Vector2 ControlPoint1 { get => _owner.ControlPoint1; set => _owner.ControlPoint1 = value; }
@@ -92,8 +113,15 @@ namespace YMM4SamplePlugin.Easing
             _owner = owner;
             ((INotifyPropertyChanged)_owner).PropertyChanged += OnOwnerPropertyChanged;
             var pluginPath = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? "";
+
             _templateDir = System.IO.Path.Combine(pluginPath, "EasingTemplates");
             Directory.CreateDirectory(_templateDir);
+
+            _settingsDir = System.IO.Path.Combine(pluginPath, "settings");
+            Directory.CreateDirectory(_settingsDir);
+            _sizeSettingsPath = System.IO.Path.Combine(_settingsDir, "EasingSize.json");
+
+            LoadEditorSize();
 
             SaveTemplateCommand = new ActionCommand(_ => !string.IsNullOrWhiteSpace(NewTemplateName), _ => SaveTemplate());
             DeleteTemplateCommand = new ActionCommand(_ => SelectedTemplate != null, _ => DeleteSelectedTemplate());
@@ -104,14 +132,46 @@ namespace YMM4SamplePlugin.Easing
             PopulateGridLines();
         }
 
+        private void LoadEditorSize()
+        {
+            if (!File.Exists(_sizeSettingsPath)) return;
+            try
+            {
+                var json = File.ReadAllText(_sizeSettingsPath);
+                var settings = JsonSerializer.Deserialize<EditorSizeSettings>(json);
+                if (settings != null)
+                {
+                    _editorSize = settings.Size;
+                }
+            }
+            catch { }
+        }
+
+        private void SaveEditorSize()
+        {
+            try
+            {
+                var settings = new EditorSizeSettings { Size = this.EditorSize };
+                var json = JsonSerializer.Serialize(settings);
+                File.WriteAllText(_sizeSettingsPath, json);
+            }
+            catch { }
+        }
+
+
         private void PopulateGridLines()
         {
             VerticalGridLines.Clear();
             HorizontalGridLines.Clear();
-            for (int i = 20; i < 200; i += 20)
+
+            if (EasingAreaSize <= 0) return;
+
+            double step = EasingAreaSize / 10.0;
+            for (int i = 1; i < 10; i++)
             {
-                VerticalGridLines.Add((double)i);
-                HorizontalGridLines.Add((double)i);
+                var pos = i * step;
+                VerticalGridLines.Add(pos);
+                HorizontalGridLines.Add(pos);
             }
         }
 
@@ -242,6 +302,12 @@ namespace YMM4SamplePlugin.Easing
         public void Dispose() { ((INotifyPropertyChanged)_owner).PropertyChanged -= OnOwnerPropertyChanged; }
     }
 
+    internal class EditorSizeSettings
+    {
+        public double Size { get; set; }
+    }
+
+
     public partial class EasingEditor : UserControl, IPropertyEditorControl
     {
         private EasingEditorViewModel? ViewModel => DataContext as EasingEditorViewModel;
@@ -290,9 +356,11 @@ namespace YMM4SamplePlugin.Easing
         private void UpdateUI()
         {
             var vm = ViewModel;
-            if (vm == null || EasingArea.ActualWidth <= 0) return;
-            var w = EasingArea.ActualWidth;
-            var h = EasingArea.ActualHeight;
+            if (vm == null || !vm.IsMidpointEnabled && EasingArea.ActualWidth <= 0) return;
+
+            var w = vm.EasingAreaSize;
+            var h = vm.EasingAreaSize;
+            if (w <= 0) return;
 
             var p0 = new Point(0, h);
             var pEnd = new Point(w, 0);
@@ -336,6 +404,15 @@ namespace YMM4SamplePlugin.Easing
                 {
                     BezierFigure2.Segments.Clear();
                 }
+            }
+        }
+
+        private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (ViewModel is EasingEditorViewModel vm)
+            {
+                double newSize = vm.EditorSize + e.HorizontalChange + e.VerticalChange;
+                vm.EditorSize = newSize;
             }
         }
 
@@ -408,19 +485,23 @@ namespace YMM4SamplePlugin.Easing
             if (_capturedElement == null || vm == null) return;
             var pos = e.GetPosition(EditorGrid);
 
-            pos.X = Math.Clamp(pos.X, 0, EditorGrid.ActualWidth);
-            pos.Y = Math.Clamp(pos.Y, 0, EditorGrid.ActualHeight);
+            double canvasWidth = EditorGrid.ActualWidth;
+            double canvasHeight = EditorGrid.ActualHeight;
+
+            pos.X = Math.Clamp(pos.X, 0, canvasWidth);
+            pos.Y = Math.Clamp(pos.Y, 0, canvasHeight);
 
             if (vm.EnableSnapping)
             {
-                var gridUnit = EasingArea.ActualWidth / 10.0;
+                double easingAreaWidth = vm.EasingAreaSize;
+                var gridUnit = easingAreaWidth / 10.0;
                 var canvasOrigin = new Point(50, 50);
                 pos.X = Math.Round((pos.X - canvasOrigin.X) / gridUnit) * gridUnit + canvasOrigin.X;
                 pos.Y = Math.Round((pos.Y - canvasOrigin.Y) / gridUnit) * gridUnit + canvasOrigin.Y;
             }
 
-            var w = EasingArea.ActualWidth;
-            var h = EasingArea.ActualHeight;
+            var w = vm.EasingAreaSize;
+            var h = vm.EasingAreaSize;
             var p0_abs = new Point(50, h + 50);
             var pEnd_abs = new Point(w + 50, 50);
             var pMid_abs = new Point(50 + vm.MidpointTime * w, 50 + h * 0.5);

@@ -52,73 +52,85 @@
             <Slider Value="{Binding MidpointTime, Mode=TwoWay}" Minimum="0.01" Maximum="0.99" TickFrequency="0.01" IsSnapToTickEnabled="True"/>
         </StackPanel>
 
-        <Viewbox Grid.Row="2" Margin="5" Stretch="Uniform">
-            <Grid Width="300" Height="300" x:Name="EditorGrid" Background="#333"
-                  MouseLeftButtonDown="Canvas_MouseLeftButtonDown" MouseLeftButtonUp="Canvas_MouseLeftButtonUp"
-                  MouseRightButtonDown="Canvas_MouseRightButtonDown"
-                  MouseMove="Canvas_MouseMove" SizeChanged="Canvas_SizeChanged">
+        <Grid Grid.Row="2" Margin="5"
+              Width="{Binding EditorSize}" Height="{Binding EditorSize}"
+              x:Name="EditorGrid" Background="#333" HorizontalAlignment="Center"
+              MouseLeftButtonDown="Canvas_MouseLeftButtonDown" MouseLeftButtonUp="Canvas_MouseLeftButtonUp"
+              MouseRightButtonDown="Canvas_MouseRightButtonDown"
+              MouseMove="Canvas_MouseMove" SizeChanged="Canvas_SizeChanged">
 
-                <Canvas x:Name="Canvas">
-                    <Border x:Name="SafeArea" BorderBrush="#555" BorderThickness="1"
-                            Width="{Binding ActualWidth, ElementName=EditorGrid}"
-                            Height="{Binding ActualHeight, ElementName=EditorGrid}"/>
+            <Canvas x:Name="Canvas">
+                <Border x:Name="SafeArea" BorderBrush="#555" BorderThickness="1"
+                        Width="{Binding ActualWidth, ElementName=EditorGrid}"
+                        Height="{Binding ActualHeight, ElementName=EditorGrid}"/>
 
-                    <Border x:Name="EasingArea" BorderBrush="White" BorderThickness="1" IsHitTestVisible="False"
-                            Width="200" Height="200"
-                            Canvas.Left="50" Canvas.Top="50"/>
+                <Border x:Name="EasingArea" BorderBrush="White" BorderThickness="1" IsHitTestVisible="False"
+                        Width="{Binding EasingAreaSize}"
+                        Height="{Binding EasingAreaSize}"
+                        Canvas.Left="50" Canvas.Top="50"/>
 
-                    <ItemsControl x:Name="VerticalGrid" ItemsSource="{Binding VerticalGridLines}" Canvas.Left="50" Canvas.Top="50">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Line Stroke="#555" StrokeDashArray="2 2" X1="{Binding}" Y1="0" X2="{Binding}" Y2="200"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                <ItemsControl x:Name="VerticalGrid" ItemsSource="{Binding VerticalGridLines}" Canvas.Left="50" Canvas.Top="50">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Line Stroke="#555" StrokeDashArray="2 2" X1="{Binding}" Y1="0" X2="{Binding}" Y2="{Binding DataContext.EasingAreaSize, ElementName=EditorGrid}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                    <ItemsControl x:Name="HorizontalGrid" ItemsSource="{Binding HorizontalGridLines}" Canvas.Left="50" Canvas.Top="50">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Line Stroke="#555" StrokeDashArray="2 2" X1="0" Y1="{Binding}" X2="200" Y2="{Binding}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                <ItemsControl x:Name="HorizontalGrid" ItemsSource="{Binding HorizontalGridLines}" Canvas.Left="50" Canvas.Top="50">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Canvas/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Line Stroke="#555" StrokeDashArray="2 2" X1="0" Y1="{Binding}" X2="{Binding DataContext.EasingAreaSize, ElementName=EditorGrid}" Y2="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-                    <Path x:Name="BezierFigure1_Path" Stroke="White" StrokeThickness="1">
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathFigure x:Name="BezierFigure1" IsFilled="False"/>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    <Line x:Name="Handle1_1" Stroke="Gray" StrokeThickness="1"/>
-                    <Line x:Name="Handle1_2" Stroke="Gray" StrokeThickness="1"/>
-                    <Ellipse x:Name="ControlPoint1" Fill="DodgerBlue" Width="10" Height="10" Cursor="Hand"/>
-                    <Ellipse x:Name="ControlPoint2" Fill="DodgerBlue" Width="10" Height="10" Cursor="Hand"/>
-                    <Path x:Name="BezierFigure2_Path" Stroke="Aqua" StrokeThickness="1">
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathFigure x:Name="BezierFigure2" IsFilled="False"/>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    <Line x:Name="Handle2_1" Stroke="Gray" StrokeThickness="1"/>
-                    <Line x:Name="Handle2_2" Stroke="Gray" StrokeThickness="1"/>
-                    <Ellipse x:Name="ControlPoint3" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
-                    <Ellipse x:Name="ControlPoint4" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
-                    <Line x:Name="MidpointLine" Stroke="White" StrokeDashArray="2 2"/>
-                </Canvas>
-            </Grid>
-        </Viewbox>
+                <Path x:Name="BezierFigure1_Path" Stroke="White" StrokeThickness="1">
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathFigure x:Name="BezierFigure1" IsFilled="False"/>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+                <Line x:Name="Handle1_1" Stroke="Gray" StrokeThickness="1"/>
+                <Line x:Name="Handle1_2" Stroke="Gray" StrokeThickness="1"/>
+                <Ellipse x:Name="ControlPoint1" Fill="DodgerBlue" Width="10" Height="10" Cursor="Hand"/>
+                <Ellipse x:Name="ControlPoint2" Fill="DodgerBlue" Width="10" Height="10" Cursor="Hand"/>
+                <Path x:Name="BezierFigure2_Path" Stroke="Aqua" StrokeThickness="1">
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathFigure x:Name="BezierFigure2" IsFilled="False"/>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+                <Line x:Name="Handle2_1" Stroke="Gray" StrokeThickness="1"/>
+                <Line x:Name="Handle2_2" Stroke="Gray" StrokeThickness="1"/>
+                <Ellipse x:Name="ControlPoint3" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
+                <Ellipse x:Name="ControlPoint4" Fill="HotPink" Width="10" Height="10" Cursor="Hand"/>
+                <Line x:Name="MidpointLine" Stroke="White" StrokeDashArray="2 2"/>
+            </Canvas>
+
+            <Thumb x:Name="ResizeThumb" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                   Width="15" Height="15" Cursor="SizeNWSE" DragDelta="ResizeThumb_DragDelta">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="#666" CornerRadius="2">
+                            <Path Data="M 8,10 L 10,8 M 5,10 L 10,5 M 2,10 L 10,2" Stroke="White" StrokeThickness="1"/>
+                        </Border>
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+        </Grid>
 
         <StackPanel Grid.Row="3" Margin="5,0,5,5">
             <Grid>
