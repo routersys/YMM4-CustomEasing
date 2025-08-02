@@ -45,6 +45,12 @@ namespace YMM4SamplePlugin.Easing
         public double MidpointTime { get => midpointTime; set => Set(ref midpointTime, Math.Clamp(value, 0.0, 1.0)); }
         private double midpointTime = 0.5;
 
+        public bool IsMidpointSmooth { get => isMidpointSmooth; set => Set(ref isMidpointSmooth, value); }
+        private bool isMidpointSmooth = false;
+
+        [JsonIgnore]
+        public float EditorEasingAreaSize { get; set; } = 200f;
+
         public Vector2 ControlPoint1 { get => controlPoint1; set => Set(ref controlPoint1, value); }
         private Vector2 controlPoint1 = new(40f, -40f);
 
@@ -104,40 +110,40 @@ namespace YMM4SamplePlugin.Easing
             Vector2 currentPos;
 
             double linearTime = (double)frame / length;
-            const float editorSize = 200f;
+            float editorSize = _effect.EditorEasingAreaSize > 0 ? _effect.EditorEasingAreaSize : 200f;
 
             if (_effect.IsMidpointEnabled)
             {
                 var midTime = (float)_effect.MidpointTime;
                 var midPos = startPos + new Vector2((float)_effect.MidpointX.GetValue(frame, length, fps), (float)_effect.MidpointY.GetValue(frame, length, fps));
 
-                var p0_1 = new Vector2(0, 0);
-                var p3_1 = new Vector2(midTime, 0.5f);
-                var p1_1_raw = p0_1 + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
-                var p2_1_raw = p3_1 + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
-                var p1_1 = new Vector2(Math.Clamp(p1_1_raw.X, 0f, midTime), p1_1_raw.Y);
-                var p2_1 = new Vector2(Math.Clamp(p2_1_raw.X, 0f, midTime), p2_1_raw.Y);
-
-                _solver1.Update(p1_1, p2_1, p0_1, p3_1);
-
-                var p0_2 = new Vector2(midTime, 0.5f);
-                var p3_2 = new Vector2(1, 1);
-                var p1_2_raw = p0_2 + new Vector2(_effect.ControlPoint3.X / editorSize, -_effect.ControlPoint3.Y / editorSize);
-                var p2_2_raw = p3_2 + new Vector2(_effect.ControlPoint4.X / editorSize, -_effect.ControlPoint4.Y / editorSize);
-                var p1_2 = new Vector2(Math.Clamp(p1_2_raw.X, midTime, 1f), p1_2_raw.Y);
-                var p2_2 = new Vector2(Math.Clamp(p2_2_raw.X, midTime, 1f), p2_2_raw.Y);
-
-                _solver2.Update(p1_2, p2_2, p0_2, p3_2);
-
                 if (linearTime <= midTime && midTime > 0)
                 {
+                    var p0 = new Vector2(0, 0);
+                    var p3 = new Vector2(midTime, 0.5f);
+                    var p1_raw = p0 + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
+                    var p2_raw = p3 + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
+                    var p1 = new Vector2(Math.Clamp(p1_raw.X, 0f, midTime), p1_raw.Y);
+                    var p2 = new Vector2(Math.Clamp(p2_raw.X, 0f, midTime), p2_raw.Y);
+
+                    _solver1.Update(p1, p2, p0, p3);
                     var progress = _solver1.Solve((float)linearTime);
-                    currentPos = Vector2.Lerp(startPos, midPos, progress);
+                    var progress_lerp = progress * 2f;
+                    currentPos = Vector2.Lerp(startPos, midPos, progress_lerp);
                 }
                 else
                 {
+                    var p0 = new Vector2(midTime, 0.5f);
+                    var p3 = new Vector2(1, 1);
+                    var p1_raw = p0 + new Vector2(_effect.ControlPoint3.X / editorSize, -_effect.ControlPoint3.Y / editorSize);
+                    var p2_raw = p3 + new Vector2(_effect.ControlPoint4.X / editorSize, -_effect.ControlPoint4.Y / editorSize);
+                    var p1 = new Vector2(Math.Clamp(p1_raw.X, midTime, 1f), p1_raw.Y);
+                    var p2 = new Vector2(Math.Clamp(p2_raw.X, midTime, 1f), p2_raw.Y);
+
+                    _solver2.Update(p1, p2, p0, p3);
                     var progress = _solver2.Solve((float)linearTime);
-                    currentPos = Vector2.Lerp(midPos, endPos, progress);
+                    var progress_lerp = (progress - 0.5f) * 2f;
+                    currentPos = Vector2.Lerp(midPos, endPos, progress_lerp);
                 }
             }
             else
@@ -152,6 +158,7 @@ namespace YMM4SamplePlugin.Easing
 
                 _solver1.Update(p1, p2, p0, p3);
                 var progress = _solver1.Solve((float)linearTime);
+
                 currentPos = Vector2.Lerp(startPos, endPos, progress);
             }
 

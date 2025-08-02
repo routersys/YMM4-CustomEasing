@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -85,6 +86,7 @@ namespace YMM4SamplePlugin.Easing
                     OnPropertyChanged(nameof(EasingAreaSize));
                     PopulateGridLines();
                     SaveEditorSize();
+                    _owner.EditorEasingAreaSize = (float)EasingAreaSize;
                 }
             }
         }
@@ -93,6 +95,23 @@ namespace YMM4SamplePlugin.Easing
 
         public bool IsMidpointEnabled { get => _owner.IsMidpointEnabled; set { if (_owner.IsMidpointEnabled != value) { _owner.IsMidpointEnabled = value; OnPropertyChanged(); } } }
         public double MidpointTime { get => _owner.MidpointTime; set { if (_owner.MidpointTime != value) { _owner.MidpointTime = value; OnPropertyChanged(); } } }
+        public bool IsMidpointSmooth
+        {
+            get => _owner.IsMidpointSmooth;
+            set
+            {
+                if (_owner.IsMidpointSmooth != value)
+                {
+                    _owner.IsMidpointSmooth = value;
+                    if (value)
+                    {
+                        _owner.ControlPoint3 = -_owner.ControlPoint2;
+                    }
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public Vector2 ControlPoint1 { get => _owner.ControlPoint1; set => _owner.ControlPoint1 = value; }
         public Vector2 ControlPoint2 { get => _owner.ControlPoint2; set => _owner.ControlPoint2 = value; }
         public Vector2 ControlPoint3 { get => _owner.ControlPoint3; set => _owner.ControlPoint3 = value; }
@@ -122,6 +141,7 @@ namespace YMM4SamplePlugin.Easing
             _sizeSettingsPath = System.IO.Path.Combine(_settingsDir, "EasingSize.json");
 
             LoadEditorSize();
+            _owner.EditorEasingAreaSize = (float)EasingAreaSize;
 
             SaveTemplateCommand = new ActionCommand(_ => !string.IsNullOrWhiteSpace(NewTemplateName), _ => SaveTemplate());
             DeleteTemplateCommand = new ActionCommand(_ => SelectedTemplate != null, _ => DeleteSelectedTemplate());
@@ -299,7 +319,38 @@ namespace YMM4SamplePlugin.Easing
         public event PropertyChangedEventHandler? PropertyChanged;
         protected bool Set<T>(ref T field, T value, [CallerMemberName] string? propertyName = null) { if (EqualityComparer<T>.Default.Equals(field, value)) return false; field = value; OnPropertyChanged(propertyName); return true; }
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null) { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName)); }
-        public void Dispose() { ((INotifyPropertyChanged)_owner).PropertyChanged -= OnOwnerPropertyChanged; }
+
+        public void Dispose()
+        {
+            ((INotifyPropertyChanged)_owner).PropertyChanged -= OnOwnerPropertyChanged;
+            LaunchUpdater();
+        }
+
+        private void LaunchUpdater()
+        {
+            try
+            {
+                string? pluginLocation = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(pluginLocation)) return;
+
+                string updaterPath = System.IO.Path.Combine(pluginLocation, "Updater.exe");
+                if (!File.Exists(updaterPath)) return;
+
+                var ymmProcess = Process.GetCurrentProcess();
+
+                var startInfo = new ProcessStartInfo(updaterPath)
+                {
+                    Arguments = $"{ymmProcess.Id} \"{pluginLocation}\"",
+                    UseShellExecute = true,
+                    CreateNoWindow = true
+                };
+                Process.Start(startInfo);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to launch updater: {ex.Message}");
+            }
+        }
     }
 
     internal class EditorSizeSettings
@@ -543,12 +594,22 @@ namespace YMM4SamplePlugin.Easing
                 newOffsetX = (float)(pos.X - anchor.X);
                 newOffsetY = (float)(pos.Y - anchor.Y);
                 vm.ControlPoint2 = new Vector2(newOffsetX, newOffsetY);
+
+                if (vm.IsMidpointEnabled && vm.IsMidpointSmooth)
+                {
+                    vm.ControlPoint3 = -vm.ControlPoint2;
+                }
             }
             else if (_capturedElement == ControlPoint3)
             {
                 newOffsetX = (float)(pos.X - pMid_abs.X);
                 newOffsetY = (float)(pos.Y - pMid_abs.Y);
                 vm.ControlPoint3 = new Vector2(newOffsetX, newOffsetY);
+
+                if (vm.IsMidpointEnabled && vm.IsMidpointSmooth)
+                {
+                    vm.ControlPoint2 = -vm.ControlPoint3;
+                }
             }
             else if (_capturedElement == ControlPoint4)
             {
