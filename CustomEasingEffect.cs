@@ -10,6 +10,7 @@ using YukkuriMovieMaker.Exo;
 using YukkuriMovieMaker.Player.Video;
 using YukkuriMovieMaker.Plugin.Effects;
 using Vortice.Direct2D1;
+using System.Globalization;
 
 namespace YMM4SamplePlugin.Easing
 {
@@ -225,7 +226,6 @@ namespace YMM4SamplePlugin.Easing
             }
             --currentSample;
 
-            // Handle cases where the curve is not strictly increasing
             float denominator = _sampleValues[currentSample + 1] - _sampleValues[currentSample];
             float dist = denominator == 0 ? 0 : (x - _sampleValues[currentSample]) / denominator;
             float guessForT = intervalStart + dist * kSampleStepSize;
@@ -289,7 +289,6 @@ namespace YMM4SamplePlugin.Easing
         public bool IsMidpointEnabled { get; set; } = false;
         public double MidpointTime { get; set; } = 0.5;
 
-        // Vector2を直接シリアライズする代わりに、個別のfloatプロパティをシリアライズする
         public float CP1X { get; set; }
         public float CP1Y { get; set; }
         public float CP2X { get; set; }
@@ -303,5 +302,62 @@ namespace YMM4SamplePlugin.Easing
         [JsonIgnore] public PathGeometry CurveGeometry { get; set; } = new();
 
         public EasingTemplate() { }
+    }
+
+    public static class EasingConverter
+    {
+        private const double EditorSize = 200.0;
+
+        public static string[] ConvertToCss(CustomEasingEffect effect)
+        {
+            if (effect.IsMidpointEnabled)
+            {
+                var midTime = Math.Clamp(effect.MidpointTime, 0.0001, 0.9999);
+
+                var cp1_orig_x = effect.ControlPoint1.X / EditorSize;
+                var cp1_orig_y = -effect.ControlPoint1.Y / EditorSize;
+                var cp2_orig_x = midTime + effect.ControlPoint2.X / EditorSize;
+                var cp2_orig_y = 0.5 - effect.ControlPoint2.Y / EditorSize;
+
+                var p1x = cp1_orig_x / midTime;
+                var p1y = cp1_orig_y / 0.5;
+                var p2x = cp2_orig_x / midTime;
+                var p2y = cp2_orig_y / 0.5;
+
+                var bezier1 = $"cubic-bezier({Format(p1x)}, {Format(p1y)}, {Format(p2x)}, {Format(p2y)})";
+
+                var timeRange2 = 1.0 - midTime;
+
+                var cp3_orig_x = midTime + effect.ControlPoint3.X / EditorSize;
+                var cp3_orig_y = 0.5 - effect.ControlPoint3.Y / EditorSize;
+                var cp4_orig_x = 1.0 + effect.ControlPoint4.X / EditorSize;
+                var cp4_orig_y = 1.0 - effect.ControlPoint4.Y / EditorSize;
+
+                var p3x = (cp3_orig_x - midTime) / timeRange2;
+                var p3y = (cp3_orig_y - 0.5) / 0.5;
+                var p4x = (cp4_orig_x - midTime) / timeRange2;
+                var p4y = (cp4_orig_y - 0.5) / 0.5;
+
+                var bezier2 = $"cubic-bezier({Format(p3x)}, {Format(p3y)}, {Format(p4x)}, {Format(p4y)})";
+
+                return [bezier1, bezier2];
+            }
+            else
+            {
+                var p1x = effect.ControlPoint1.X / EditorSize;
+                var p1y = -effect.ControlPoint1.Y / EditorSize;
+                var p2x = 1.0 + effect.ControlPoint2.X / EditorSize;
+                var p2y = 1.0 - effect.ControlPoint2.Y / EditorSize;
+
+                var bezier = $"cubic-bezier({Format(p1x)}, {Format(p1y)}, {Format(p2x)}, {Format(p2y)})";
+
+                return [bezier];
+            }
+        }
+
+        private static string Format(double value)
+        {
+            return value.ToString("F4", CultureInfo.InvariantCulture);
+        }
     }
 }
