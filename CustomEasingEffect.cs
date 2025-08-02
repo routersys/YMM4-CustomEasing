@@ -79,14 +79,16 @@ namespace YMM4SamplePlugin.Easing
     {
         private readonly CustomEasingEffect _effect;
         private ID2D1Image? _input;
-        private readonly BezierSolver _solver1 = new();
-        private readonly BezierSolver _solver2 = new();
+        private readonly BezierSolver _solver1;
+        private readonly BezierSolver _solver2;
 
         public ID2D1Image Output => _input ?? throw new InvalidOperationException("Input image is not set.");
 
         public CustomEasingProcessor(CustomEasingEffect effect)
         {
             _effect = effect;
+            _solver1 = new BezierSolver();
+            _solver2 = new BezierSolver();
         }
 
         public DrawDescription Update(EffectDescription effectDescription)
@@ -105,37 +107,50 @@ namespace YMM4SamplePlugin.Easing
 
             if (_effect.IsMidpointEnabled)
             {
-                var midTime = _effect.MidpointTime;
+                var midTime = (float)_effect.MidpointTime;
                 var midPos = startPos + new Vector2((float)_effect.MidpointX.GetValue(frame, length, fps), (float)_effect.MidpointY.GetValue(frame, length, fps));
 
-                var p0_norm = new Vector2(0, 0);
-                var pMid_norm = new Vector2((float)midTime, 0.5f);
-                var pEnd_norm = new Vector2(1, 1);
+                var p0_1 = new Vector2(0, 0);
+                var p3_1 = new Vector2(midTime, 0.5f);
+                var p1_1_raw = p0_1 + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
+                var p2_1_raw = p3_1 + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
+                var p1_1 = new Vector2(Math.Clamp(p1_1_raw.X, 0f, midTime), p1_1_raw.Y);
+                var p2_1 = new Vector2(Math.Clamp(p2_1_raw.X, 0f, midTime), p2_1_raw.Y);
+
+                _solver1.Update(p1_1, p2_1, p0_1, p3_1);
+
+                var p0_2 = new Vector2(midTime, 0.5f);
+                var p3_2 = new Vector2(1, 1);
+                var p1_2_raw = p0_2 + new Vector2(_effect.ControlPoint3.X / editorSize, -_effect.ControlPoint3.Y / editorSize);
+                var p2_2_raw = p3_2 + new Vector2(_effect.ControlPoint4.X / editorSize, -_effect.ControlPoint4.Y / editorSize);
+                var p1_2 = new Vector2(Math.Clamp(p1_2_raw.X, midTime, 1f), p1_2_raw.Y);
+                var p2_2 = new Vector2(Math.Clamp(p2_2_raw.X, midTime, 1f), p2_2_raw.Y);
+
+                _solver2.Update(p1_2, p2_2, p0_2, p3_2);
 
                 if (linearTime <= midTime && midTime > 0)
                 {
-                    var t = (float)(linearTime / midTime);
-                    var p1_norm_abs = p0_norm + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
-                    var p2_norm_abs = pMid_norm + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
-                    var progress = _solver1.Solve(t, p1_norm_abs, p2_norm_abs, p0_norm, pMid_norm);
+                    var progress = _solver1.Solve((float)linearTime);
                     currentPos = Vector2.Lerp(startPos, midPos, progress);
                 }
                 else
                 {
-                    var t = midTime >= 1 ? 1 : (float)((linearTime - midTime) / (1 - midTime));
-                    var p1_norm_abs = pMid_norm + new Vector2(_effect.ControlPoint3.X / editorSize, -_effect.ControlPoint3.Y / editorSize);
-                    var p2_norm_abs = pEnd_norm + new Vector2(_effect.ControlPoint4.X / editorSize, -_effect.ControlPoint4.Y / editorSize);
-                    var progress = _solver2.Solve(t, p1_norm_abs, p2_norm_abs, pMid_norm, pEnd_norm);
+                    var progress = _solver2.Solve((float)linearTime);
                     currentPos = Vector2.Lerp(midPos, endPos, progress);
                 }
             }
             else
             {
-                var p0_norm = new Vector2(0, 0);
-                var pEnd_norm = new Vector2(1, 1);
-                var p1_norm_abs = p0_norm + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
-                var p2_norm_abs = pEnd_norm + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
-                var progress = _solver1.Solve((float)linearTime, p1_norm_abs, p2_norm_abs, p0_norm, pEnd_norm);
+                var p0 = new Vector2(0, 0);
+                var p3 = new Vector2(1, 1);
+                var p1_raw = p0 + new Vector2(_effect.ControlPoint1.X / editorSize, -_effect.ControlPoint1.Y / editorSize);
+                var p2_raw = p3 + new Vector2(_effect.ControlPoint2.X / editorSize, -_effect.ControlPoint2.Y / editorSize);
+
+                var p1 = new Vector2(Math.Clamp(p1_raw.X, 0f, 1f), p1_raw.Y);
+                var p2 = new Vector2(Math.Clamp(p2_raw.X, 0f, 1f), p2_raw.Y);
+
+                _solver1.Update(p1, p2, p0, p3);
+                var progress = _solver1.Solve((float)linearTime);
                 currentPos = Vector2.Lerp(startPos, endPos, progress);
             }
 
@@ -150,33 +165,123 @@ namespace YMM4SamplePlugin.Easing
 
     public class BezierSolver
     {
-        private static float GetX(float t, Vector2 p1, Vector2 p2, Vector2 start, Vector2 end) =>
-            3 * MathF.Pow(1 - t, 2) * t * p1.X +
-            3 * (1 - t) * t * t * p2.X +
-            MathF.Pow(1 - t, 3) * start.X + MathF.Pow(t, 3) * end.X;
+        private const int NEWTON_ITERATIONS = 4;
+        private const float NEWTON_MIN_SLOPE = 0.001f;
+        private const float SUBDIVISION_PRECISION = 0.0000001f;
+        private const int SUBDIVISION_MAX_ITERATIONS = 10;
+        private const int kSplineTableSize = 11;
+        private const float kSampleStepSize = 1.0f / (kSplineTableSize - 1.0f);
 
-        private static float GetY(float t, Vector2 p1, Vector2 p2, Vector2 start, Vector2 end) =>
-            3 * MathF.Pow(1 - t, 2) * t * p1.Y +
-            3 * (1 - t) * t * t * p2.Y +
-            MathF.Pow(1 - t, 3) * start.Y + MathF.Pow(t, 3) * end.Y;
+        private Vector2 _p1, _p2, _start, _end;
+        private float[]? _sampleValues;
 
-        public float Solve(float time, Vector2 p1, Vector2 p2, Vector2 start, Vector2 end)
+        public BezierSolver() { }
+        public BezierSolver(Vector2 p1, Vector2 p2, Vector2 start, Vector2 end)
         {
-            if (time <= 0.0f) return start.Y;
-            if (time >= 1.0f) return end.Y;
+            Update(p1, p2, start, end);
+        }
 
-            float t = time;
-            for (int i = 0; i < 8; i++)
+        public void Update(Vector2 p1, Vector2 p2, Vector2 start, Vector2 end)
+        {
+            _p1 = p1;
+            _p2 = p2;
+            _start = start;
+            _end = end;
+            _sampleValues = null;
+        }
+
+
+        private float GetBezierCoordinate(float t, float p0, float p1, float p2, float p3)
+        {
+            float oneMinusT = 1 - t;
+            return MathF.Pow(oneMinusT, 3) * p0 + 3 * MathF.Pow(oneMinusT, 2) * t * p1 + 3 * oneMinusT * MathF.Pow(t, 2) * p2 + MathF.Pow(t, 3) * p3;
+        }
+
+        private float GetSlope(float t, float p0, float p1, float p2, float p3)
+        {
+            float oneMinusT = 1 - t;
+            return 3 * MathF.Pow(oneMinusT, 2) * (p1 - p0) + 6 * oneMinusT * t * (p2 - p1) + 3 * MathF.Pow(t, 2) * (p3 - p2);
+        }
+
+        private float GetTforX(float x)
+        {
+            if (_sampleValues == null)
             {
-                float x = GetX(t, p1, p2, start, end);
-                float dx_dt = 3 * (1 - t) * (1 - t) * (p1.X - start.X) + 6 * (1 - t) * t * (p2.X - p1.X) + 3 * t * t * (end.X - p2.X);
-                if (MathF.Abs(x - time) < 1e-6f) break;
-                if (MathF.Abs(dx_dt) < 1e-6f) break;
-                t -= (x - time) / dx_dt;
+                _sampleValues = new float[kSplineTableSize];
+                for (int i = 0; i < kSplineTableSize; ++i)
+                {
+                    _sampleValues[i] = GetBezierCoordinate(i * kSampleStepSize, _start.X, _p1.X, _p2.X, _end.X);
+                }
             }
-            return GetY(Math.Clamp(t, 0, 1), p1, p2, start, end);
+
+
+            float intervalStart = 0.0f;
+            int currentSample = 1;
+            int lastSample = kSplineTableSize - 1;
+
+            for (; currentSample != lastSample && _sampleValues[currentSample] <= x; ++currentSample)
+            {
+                intervalStart += kSampleStepSize;
+            }
+            --currentSample;
+
+            // Handle cases where the curve is not strictly increasing
+            float denominator = _sampleValues[currentSample + 1] - _sampleValues[currentSample];
+            float dist = denominator == 0 ? 0 : (x - _sampleValues[currentSample]) / denominator;
+            float guessForT = intervalStart + dist * kSampleStepSize;
+
+            float initialSlope = GetSlope(guessForT, _start.X, _p1.X, _p2.X, _end.X);
+            if (initialSlope >= NEWTON_MIN_SLOPE)
+            {
+                for (int i = 0; i < NEWTON_ITERATIONS; ++i)
+                {
+                    float currentSlope = GetSlope(guessForT, _start.X, _p1.X, _p2.X, _end.X);
+                    if (currentSlope == 0.0f)
+                    {
+                        return guessForT;
+                    }
+                    float currentX = GetBezierCoordinate(guessForT, _start.X, _p1.X, _p2.X, _end.X) - x;
+                    guessForT -= currentX / currentSlope;
+                }
+                return guessForT;
+            }
+            else if (initialSlope == 0.0f)
+            {
+                return guessForT;
+            }
+            else
+            {
+                float a = intervalStart;
+                float b = intervalStart + kSampleStepSize;
+                float currentX;
+                int i = 0;
+
+                do
+                {
+                    guessForT = a + (b - a) / 2.0f;
+                    currentX = GetBezierCoordinate(guessForT, _start.X, _p1.X, _p2.X, _end.X) - x;
+                    if (currentX > 0.0f)
+                    {
+                        b = guessForT;
+                    }
+                    else
+                    {
+                        a = guessForT;
+                    }
+                } while (Math.Abs(currentX) > SUBDIVISION_PRECISION && ++i < SUBDIVISION_MAX_ITERATIONS);
+
+                return guessForT;
+            }
+        }
+
+        public float Solve(float x)
+        {
+            if (x <= _start.X) return _start.Y;
+            if (x >= _end.X) return _end.Y;
+            return GetBezierCoordinate(GetTforX(x), _start.Y, _p1.Y, _p2.Y, _end.Y);
         }
     }
+
 
     public class EasingTemplate
     {

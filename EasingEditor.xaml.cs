@@ -312,6 +312,8 @@ namespace YMM4SamplePlugin.Easing
     {
         private EasingEditorViewModel? ViewModel => DataContext as EasingEditorViewModel;
         private Ellipse? _capturedElement;
+        private double _initialEditorSize;
+        private Vector2 _initialControlPoint1, _initialControlPoint2, _initialControlPoint3, _initialControlPoint4;
 
         public event EventHandler? BeginEdit;
         public event EventHandler? EndEdit;
@@ -407,12 +409,34 @@ namespace YMM4SamplePlugin.Easing
             }
         }
 
+        private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
+        {
+            if (ViewModel is EasingEditorViewModel vm)
+            {
+                _initialEditorSize = vm.EditorSize;
+                _initialControlPoint1 = vm.ControlPoint1;
+                _initialControlPoint2 = vm.ControlPoint2;
+                _initialControlPoint3 = vm.ControlPoint3;
+                _initialControlPoint4 = vm.ControlPoint4;
+            }
+        }
+
+
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
             if (ViewModel is EasingEditorViewModel vm)
             {
                 double newSize = vm.EditorSize + e.HorizontalChange + e.VerticalChange;
+                double scale = (newSize - 100) / (_initialEditorSize - 100);
                 vm.EditorSize = newSize;
+
+                if (_initialEditorSize > 100)
+                {
+                    vm.ControlPoint1 = _initialControlPoint1 * (float)scale;
+                    vm.ControlPoint2 = _initialControlPoint2 * (float)scale;
+                    vm.ControlPoint3 = _initialControlPoint3 * (float)scale;
+                    vm.ControlPoint4 = _initialControlPoint4 * (float)scale;
+                }
             }
         }
 
