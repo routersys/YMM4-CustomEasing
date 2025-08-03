@@ -1,6 +1,6 @@
 # カスタム移動イージング プラグイン for YMM4
 
-![image](https://github.com/routersys/YMM4-CustomEasing/blob/main/thumbnail.png)
+![image](https://github.com/routersys/YMM4-CustomEasing/blob/main/image.png)
 
 ゆっくりムービーメーカー4（YMM4）で、アイテムの移動に自由な緩急（イージング）を設定できる映像エフェクトプラグインです。
 
